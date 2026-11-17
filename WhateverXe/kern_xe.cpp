@@ -19458,6 +19458,16 @@ void XE::wrapTGLRegisterWrite(void *access, unsigned long reg, uint32_t value) {
 		reinterpret_cast<uintptr_t>(__builtin_return_address(0))) : nullptr;
  const bool trace=tglTransitionRegister(reg);
  if(trace)tglTransitionRecord(36,false,access,reg,tglConnectionCaller(__builtin_return_address(0)),value);
+	  // The native panel profile caps PWM duty at 0x454D while the period is
+  // 0x17700, so macOS "100%" lands at ~18.5% duty. Rescale duty writes to
+  // the full period so max brightness is real.
+  if (reg == 0xC8258 && value) {
+      constexpr uint64_t kPeriod = 0x17700;
+      constexpr uint64_t kCap    = 0x454D;
+      uint64_t scaled = static_cast<uint64_t>(value) * kPeriod / kCap;
+      value = scaled > kPeriod ? static_cast<uint32_t>(kPeriod)
+                               : static_cast<uint32_t>(scaled);
+  }
 	FunctionCast(wrapTGLRegisterWrite, callbackXE->orgTGLRegisterWrite)(access, reg, value);
  // Sample PWM only at a native duty write while its caller owns power.
  // IORegistry reads consume this receipt; they never touch live MMIO.
